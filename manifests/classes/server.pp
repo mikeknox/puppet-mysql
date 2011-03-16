@@ -21,6 +21,14 @@ class mysql::server {
   }
 
   package { "mysql-server":
+    name    => $operatingsystem ? {
+        RedHat  => "mysql-server",
+        /SuSE/  => $lsbdistrelease ? {
+            /(11.1|11.2)/ => "mysql",
+            default       => "mysql-community-server",
+        },
+        default => "mysql-server",
+    },
     ensure => installed,
   }
 
@@ -32,35 +40,40 @@ class mysql::server {
     owner   => "mysql",
     group   => "mysql",
     seltype => "mysqld_db_t",
+    mode    => "0660",
     require => Package["mysql-server"],
   }
 
   file { "/etc/mysql/my.cnf":
-    ensure => present,
-    path => $mysql::params::mycnf,
-    owner => root,
-    group => root,
-    mode => 644,
+    ensure  => present,
+    path    => $mysql::params::mycnf,
+    owner   => root,
+    group   => root,
+    mode    => 644,
     seltype => "mysqld_etc_t",
     require => Package["mysql-server"],
   }
 
-  file { "/usr/share/augeas/lenses/contrib/mysql.aug":
+  file { "${mysql::params::lensedir}/mysql.aug":
     ensure => present,
     source => "puppet:///mysql/mysql.aug",
   }
 
   augeas { "my.cnf/mysqld":
     context => "${mysql::params::mycnfctx}/mysqld/",
-    load_path => "/usr/share/augeas/lenses/contrib/",
+    load_path => "${mysql::params::lensedir}",
     changes => [
-      "set pid-file /var/run/mysqld/mysqld.pid",
+      $operatingsystem ? {
+        /SuSE/  => "set pid-file /var/run/mysql/mysqld.pid",
+        default => "set pid-file /var/run/mysqld/mysqld.pid",
+      },
       "set old_passwords 0",
       "set character-set-server utf8",
       "set log-warnings 1",
       "set datadir ${mysql::params::data_dir}",
       $operatingsystem ? {
         /RedHat|Fedora|CentOS/ => "set log-error /var/log/mysqld.log",
+        /SuSE/  => "set log-error /var/log/mysql/mysqld.log",
         default => "set log-error /var/log/mysql.err",
       },
       $operatingsystem ? {
@@ -68,10 +81,7 @@ class mysql::server {
         default => "set set log-slow-queries /var/log/mysql/mysql-slow.log",
       },
       #"ins log-slow-admin-statements after log-slow-queries", # BUG: not implemented in puppet yet
-      $operatingsystem ? {
-        /RedHat|Fedora|CentOS/ => "set socket /var/lib/mysql/mysql.sock",
-        default => "set socket /var/run/mysqld/mysqld.sock",
-      }
+       "set socket ${mysql::params::mysocket}",
     ],
     require => [ File["/etc/mysql/my.cnf"], File["${mysql::params::data_dir}"] ],
     notify => Service["mysql"],
@@ -80,7 +90,7 @@ class mysql::server {
   # by default, replication is disabled
   augeas { "my.cnf/replication":
     context => "${mysql::params::mycnfctx}/mysqld/",
-    load_path => "/usr/share/augeas/lenses/contrib/",
+    load_path => "${mysql::params::lensedir}",
     changes => [
       "rm log-bin",
       "rm server-id",
@@ -95,13 +105,10 @@ class mysql::server {
 
   augeas { "my.cnf/mysqld_safe":
     context => "${mysql::params::mycnfctx}/mysqld_safe/",
-    load_path => "/usr/share/augeas/lenses/contrib/",
+    load_path => "${mysql::params::lensedir}",
     changes => [
       "set pid-file /var/run/mysqld/mysqld.pid",
-      $operatingsystem ? {
-        /RedHat|Fedora|CentOS/ => "set socket /var/lib/mysql/mysql.sock",
-        default => "set socket /var/run/mysqld/mysqld.sock",
-      }
+      "set socket ${mysql::params::mysocket}",
     ],
     require => File["/etc/mysql/my.cnf"],
     notify => Service["mysql"],
@@ -110,7 +117,7 @@ class mysql::server {
   # force use of system defaults
   augeas { "my.cnf/performance":
     context => "${mysql::params::mycnfctx}/",
-    load_path => "/usr/share/augeas/lenses/contrib/",
+    load_path => "${mysql::params::lensedir}",
     changes => [
      "rm mysqld/key_buffer",
      "rm mysqld/max_allowed_packet",
@@ -140,12 +147,9 @@ class mysql::server {
 
   augeas { "my.cnf/client":
     context => "${mysql::params::mycnfctx}/client/",
-    load_path => "/usr/share/augeas/lenses/contrib/",
+    load_path => "${mysql::params::lensedir}",
     changes => [
-      $operatingsystem ? {
-        /RedHat|Fedora|CentOS/ => "set socket /var/lib/mysql/mysql.sock",
-        default => "set socket /var/run/mysqld/mysqld.sock",
-      }
+      "set socket ${mysql::params::mysocket}",
     ],
     require => File["/etc/mysql/my.cnf"],
   }
@@ -209,9 +213,14 @@ class mysql::server {
   }
 
   file { "/etc/logrotate.d/mysql-server":
+    name   => $operatingsystem ? {
+      /SuSE/  => "/etc/logrotate.d/mysql",
+      default => "/etc/logrotate.d/mysql-server",
+    },
     ensure => present,
     source => $operatingsystem ? {
       /RedHat|Fedora|CentOS/ => "puppet:///mysql/logrotate.redhat",
+      /SuSE/  => "puppet:///mysql/logrotate.suse",
       default => undef,
     }
   }

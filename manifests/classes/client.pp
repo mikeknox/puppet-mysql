@@ -11,6 +11,10 @@ class mysql::client {
     name   => $operatingsystem ? {
       /Debian|Ubuntu|kFreeBSD/ => "mysql-client",
       /RedHat|Fedora|CentOS/   => "mysql",
+      /SuSE/  => $lsbdistrelease ? {
+        /(11.1|11.2)/ => "mysql-client",
+        default       => "mysql-community-server-client",
+      },
     },
   }
 }
