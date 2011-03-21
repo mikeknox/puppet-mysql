@@ -32,7 +32,7 @@ class mysql::server {
     ensure => installed,
   }
 
-  file { "${mysql::params::data_dir}":
+  file { "$mysql::params::data_dir":
     ensure  => directory,
     source  => "/var/lib/mysql",
     recurse => true,
@@ -54,14 +54,14 @@ class mysql::server {
     require => Package["mysql-server"],
   }
 
-  file { "${mysql::params::lensedir}/mysql.aug":
+  file { "$mysql::params::lensedir/mysql.aug":
     ensure => present,
     source => "puppet:///mysql/mysql.aug",
   }
 
   augeas { "my.cnf/mysqld":
-    context => "${mysql::params::mycnfctx}/mysqld/",
-    load_path => "${mysql::params::lensedir}",
+    context => "$mysql::params::mycnfctx/mysqld/",
+    load_path => "$mysql::params::lensedir",
     changes => [
       $operatingsystem ? {
         /SuSE/  => "set pid-file /var/run/mysql/mysqld.pid",
@@ -70,10 +70,10 @@ class mysql::server {
       "set old_passwords 0",
       "set character-set-server utf8",
       "set log-warnings 1",
-      "set datadir ${mysql::params::data_dir}",
+      "set datadir $mysql::params::data_dir",
       $operatingsystem ? {
         /RedHat|Fedora|CentOS/ => "set log-error /var/log/mysqld.log",
-        /SuSE/  => "set log-error /var/log/mysql/mysqld.log",
+        /SuSE/  => "set log-error /var/log/mysql.err",
         default => "set log-error /var/log/mysql.err",
       },
       $operatingsystem ? {
@@ -81,16 +81,16 @@ class mysql::server {
         default => "set set log-slow-queries /var/log/mysql/mysql-slow.log",
       },
       #"ins log-slow-admin-statements after log-slow-queries", # BUG: not implemented in puppet yet
-       "set socket ${mysql::params::mysocket}",
+       "set socket $mysql::params::mysocket",
     ],
-    require => [ File["/etc/mysql/my.cnf"], File["${mysql::params::data_dir}"] ],
+    require => [ File["/etc/mysql/my.cnf"], File["$mysql::params::data_dir"] ],
     notify => Service["mysql"],
   }
 
   # by default, replication is disabled
   augeas { "my.cnf/replication":
-    context => "${mysql::params::mycnfctx}/mysqld/",
-    load_path => "${mysql::params::lensedir}",
+    context => "$mysql::params::mycnfctx/mysqld/",
+    load_path => "$mysql::params::lensedir",
     changes => [
       "rm log-bin",
       "rm server-id",
@@ -104,11 +104,11 @@ class mysql::server {
   }
 
   augeas { "my.cnf/mysqld_safe":
-    context => "${mysql::params::mycnfctx}/mysqld_safe/",
-    load_path => "${mysql::params::lensedir}",
+    context => "$mysql::params::mycnfctx/mysqld_safe/",
+    load_path => "$mysql::params::lensedir",
     changes => [
       "set pid-file /var/run/mysqld/mysqld.pid",
-      "set socket ${mysql::params::mysocket}",
+      "set socket $mysql::params::mysocket",
     ],
     require => File["/etc/mysql/my.cnf"],
     notify => Service["mysql"],
@@ -116,8 +116,8 @@ class mysql::server {
 
   # force use of system defaults
   augeas { "my.cnf/performance":
-    context => "${mysql::params::mycnfctx}/",
-    load_path => "${mysql::params::lensedir}",
+    context => "$mysql::params::mycnfctx/",
+    load_path => "$mysql::params::lensedir",
     changes => [
      "rm mysqld/key_buffer",
      "rm mysqld/max_allowed_packet",
@@ -146,10 +146,10 @@ class mysql::server {
   }
 
   augeas { "my.cnf/client":
-    context => "${mysql::params::mycnfctx}/client/",
-    load_path => "${mysql::params::lensedir}",
+    context => "$mysql::params::mycnfctx/client/",
+    load_path => "$mysql::params::lensedir",
     changes => [
-      "set socket ${mysql::params::mysocket}",
+      "set socket $mysql::params::mysocket",
     ],
     require => File["/etc/mysql/my.cnf"],
   }
